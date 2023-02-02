@@ -30,3 +30,9 @@
 *.exe
 *.out
 *.app
+
+# Do not include vscode things.
+.vscode
+
+# Do not include the build directory.
+build
