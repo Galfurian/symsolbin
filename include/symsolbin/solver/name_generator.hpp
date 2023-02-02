@@ -7,28 +7,28 @@
 #include <string>
 #include <map>
 
-namespace symsolbin
+namespace symsolbin::name_gen
 {
 
-/// @brief Generates a unique label.
-class name_generator_t {
-public:
-    static std::string get(std::string const &prefix)
-    {
-        static std::map<std::string, bool> used;
-        long long int postfix = 0;
-        std::string label     = prefix + std::to_string(postfix);
-        while (used[label]) {
-            label = prefix + std::to_string(postfix++);
-        }
-        used[label] = true;
-        return label;
+/// @brief Randomizes the name.
+/// @param prefix the prefix of the name.
+/// @return a random, but unique name.
+static inline std::string get_name(std::string const &prefix)
+{
+    // Keeps track of used name.
+    static std::map<std::string, bool> used;
+    // We add postfix at the end of the prefix to make unique names (e.g., a1,
+    // a2, a3, ...).
+    long long int postfix = 0;
+    // The unique lable we are generating.
+    std::string label = prefix + std::to_string(postfix);
+    // Keep generating label until we find an unused one.
+    while (used[label]) {
+        label = prefix + std::to_string(postfix++);
     }
+    // Set the label as used.
+    used[label] = true;
+    return label;
+}
 
-private:
-    name_generator_t() = default;
-
-    ~name_generator_t() = default;
-};
-
-} // namespace symsolbin
+} // namespace symsolbin::name_gen

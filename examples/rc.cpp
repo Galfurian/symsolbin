@@ -12,8 +12,8 @@ using namespace symsolbin::ginac_helper;
 class Model : public analog_model_t {
 private:
     node_t in, out, gnd;
-    edge_t V0, R0, C0, L0, RL;
-    value_t r0, c0, l0, rl;
+    edge_t V0, R0, C0;
+    value_t vin, r0, c0;
 
 public:
     Model()
@@ -24,54 +24,24 @@ public:
           V0(gnd, in, "V0"),
           R0(in, out, "R0"),
           C0(out, gnd, "C0"),
-          L0(out, gnd, "L0"),
-          RL(out, gnd, "RL"),
 
+          vin("vin"),
           r0("r0"),
-          c0("c0"),
-          l0("l0"),
-          rl("rl")
+          c0("c0")
     {
-#if 0
-        GiNaC::lst equations;
-        equations.append(P(R0) == r0 * F(R0));
-        equations.append(F(C0) == c0 * ddt(P(C0)));
-        equations.append(P(RL) == rl * F(RL));
-
-        equations.append(P(V0) + P(R0) + P(C0) == 0);
-        equations.append(P(C0) == P(RL));
-        
-        equations.append(F(V0) == F(R0));
-        equations.append(F(R0) == F(C0) + F(RL));
-        GiNaC::lst unknowns;
-        unknowns.append(F(V0));
-        unknowns.append(P(R0));
-        unknowns.append(F(R0));
-        unknowns.append(P(C0));
-        unknowns.append(F(C0));
-        unknowns.append(P(RL));
-        unknowns.append(F(RL));
-
-        auto result = ginac_helper::split_solved(ginac_helper::solve(equations, unknowns, GiNaC::solve_algo::markowitz));
-        std::cout << "result:\n";
-        for (const auto &it : result)
-            std::cout << "    " << it << "\n";
-#endif
+        // Nothing to do.
     }
 
     inline void setup() override
     {
         equations(
+            P(V0) == vin,
             P(R0) == r0 * F(R0),
-            F(C0) == c0 * ddt(P(C0)),
-            F(L0) == (1 / l0) * idt(P(L0)),
-            P(RL) == rl * F(RL));
+            F(C0) == c0 * ddt(P(C0)));
         unknowns(
-            F(V0),
+            P(V0), F(V0),
             P(R0), F(R0),
-            P(C0), F(C0),
-            P(L0), F(L0),
-            P(RL), F(RL));
+            P(C0), F(C0));
     }
 };
 

@@ -123,7 +123,7 @@ std::string generate_class_dense(const model_details_t &details, const std::stri
     ss << "    {\n";
     ss << "        tracer.addScope(\"" << name << "\");\n";
     for (const auto &edge : details.edges)
-        ss << "        tracer.addTrace(" << edge << ", \"" << edge.alias << "\");\n";
+        ss << "        tracer.addTrace(" << edge << ", \"" << edge.get_alias() << "\");\n";
     ss << "        tracer.closeScope();\n";
     ss << "    }\n";
     ss << "\n";
@@ -232,7 +232,7 @@ std::string generate_class_sparse(const model_details_t &details, const std::str
     ss << "    {\n";
     ss << "        tracer.addScope(\"" << name << "\");\n";
     for (const auto &edge : details.edges)
-        ss << "        tracer.addTrace(" << edge << ", \"" << edge.alias << "\");\n";
+        ss << "        tracer.addTrace(" << edge << ", \"" << edge.get_alias() << "\");\n";
     ss << "        tracer.closeScope();\n";
     ss << "    }\n";
     ss << "\n";

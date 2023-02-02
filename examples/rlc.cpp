@@ -12,10 +12,8 @@ using namespace symsolbin::ginac_helper;
 class Model : public analog_model_t {
 private:
     node_t in, n1, n2, out, gnd;
-
     edge_t V0, R0, L0, C0, RL;
-
-    value_t r, l, c, rl;
+    value_t r0, l0, c0, rl;
 
 public:
     Model()
@@ -31,9 +29,9 @@ public:
           C0(n2, out, "C0"),
           RL(out, gnd, "RL"),
 
-          r("r"),
-          l("l"),
-          c("c"),
+          r0("r0"),
+          l0("l0"),
+          c0("c0"),
           rl("rl")
     {
         // Nothing to do.
@@ -42,17 +40,15 @@ public:
     inline void setup() override
     {
         equations(
-            P(R0) == r * F(R0),
-            P(L0) == l * ddt(F(L0)),
-            F(C0) == c * ddt(P(C0)),
+            P(R0) == r0 * F(R0),
+            P(L0) == l0 * ddt(F(L0)),
+            F(C0) == c0 * ddt(P(C0)),
             P(RL) == rl * F(RL));
         unknowns(
             F(V0),
-
             P(R0), F(R0),
             P(L0), F(L0),
             P(C0), F(C0),
-
             P(RL), F(RL));
     }
 };

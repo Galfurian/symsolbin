@@ -40,7 +40,7 @@ static inline edge_list_t __collection_get_connected_edges(const edge_list_t &co
     edge_list_t::const_iterator cit;
     edge_list_t list;
     for (cit = collection.begin(); cit != collection.end(); ++cit)
-        if ((cit->n1 == node) || (cit->n2 == node))
+        if (cit->is_connected_to(node))
             list.emplace_back(*cit);
     return list;
 }
@@ -63,8 +63,8 @@ inline void analog_model_t::__register_edge(const edge_t &edge)
 {
     if (!collection_contains_edge(__edges, edge)) {
         __edges.emplace_back(edge);
-        __register_node(edge.n1);
-        __register_node(edge.n2);
+        __register_node(edge.get_first());
+        __register_node(edge.get_second());
     }
 }
 
@@ -82,35 +82,35 @@ void analog_model_t::unknowns(const GiNaC::symbol &sym)
 
 GiNaC::symbol analog_model_t::P(const node_t &n1, const node_t &n2)
 {
-    __register_edge(edge_t(n1, n2, n1.name + "_" + n2.name));
-    return ginac_helper::get_symbol(n1.name + "_" + n2.name + ".pot");
+    __register_edge(edge_t(n1, n2, n1.get_name() + "_" + n2.get_name()));
+    return ginac_helper::get_symbol(n1.get_name() + "_" + n2.get_name() + ".pot");
 }
 
 GiNaC::symbol analog_model_t::P(const edge_t &edge)
 {
     __register_edge(edge);
-    if (edge.alias.empty())
-        return ginac_helper::get_symbol(edge.n1.name + "_" + edge.n2.name + ".pot");
-    return ginac_helper::get_symbol(edge.alias + ".pot");
+    if (edge.get_alias().empty())
+        return ginac_helper::get_symbol(edge.get_first().get_name() + "_" + edge.get_second().get_name() + ".pot");
+    return ginac_helper::get_symbol(edge.get_alias() + ".pot");
 }
 
 GiNaC::symbol analog_model_t::F(const node_t &n1, const node_t &n2)
 {
-    __register_edge(edge_t(n1, n2, n1.name + "_" + n2.name));
-    return ginac_helper::get_symbol(n1.name + "_" + n2.name + ".flw");
+    __register_edge(edge_t(n1, n2, n1.get_name() + "_" + n2.get_name()));
+    return ginac_helper::get_symbol(n1.get_name() + "_" + n2.get_name() + ".flw");
 }
 
 GiNaC::symbol analog_model_t::F(const edge_t &edge)
 {
     __register_edge(edge);
-    if (edge.alias.empty())
-        return ginac_helper::get_symbol(edge.n1.name + "_" + edge.n2.name + ".flw");
-    return ginac_helper::get_symbol(edge.alias + ".flw");
+    if (edge.get_alias().empty())
+        return ginac_helper::get_symbol(edge.get_first().get_name() + "_" + edge.get_second().get_name() + ".flw");
+    return ginac_helper::get_symbol(edge.get_alias() + ".flw");
 }
 
 GiNaC::ex analog_model_t::idt(const GiNaC::ex &e)
 {
-    auto idt_name = name_generator_t::get("idt");
+    auto idt_name = name_gen::get_name("idt");
     auto idt      = ginac_helper::get_symbol(idt_name);
     auto result   = (idt + e * ts);
     __result_support.emplace_back(idt == e * ts);
@@ -119,7 +119,7 @@ GiNaC::ex analog_model_t::idt(const GiNaC::ex &e)
 
 GiNaC::ex analog_model_t::ddt(const GiNaC::ex &e)
 {
-    auto ddt_name = name_generator_t::get("ddt");
+    auto ddt_name = name_gen::get_name("ddt");
     auto ddt      = ginac_helper::get_symbol(ddt_name);
     auto result   = ((e - ddt) / ts);
     __result_support.emplace_back(ddt == (e - ddt) / ts);
@@ -246,13 +246,13 @@ void analog_model_t::compute_kfl()
     __kfl.remove_all();
 
     for (const auto &node : __nodes) {
-        if (node.ground)
+        if (node.is_ground())
             continue;
         GiNaC::ex sum;
         for (const auto &edge : __edges) {
-            if (edge.n1 == node) {
+            if (edge.get_first() == node) {
                 sum = sum - F(edge);
-            } else if (edge.n2 == node) {
+            } else if (edge.get_second() == node) {
                 sum = sum + F(edge);
             }
         }
@@ -280,7 +280,7 @@ struct selector_t {
 
     bool select(const node_t &node)
     {
-        if (!is_selected(node)) {
+        if (!this->is_selected(node)) {
             selected_node.emplace_back(node);
             return true;
         }
@@ -289,10 +289,10 @@ struct selector_t {
 
     bool remove(const node_t &node)
     {
-        if (!is_selected(node))
+        if (!this->is_selected(node))
             return true;
         for (auto it = selected_node.begin(); it != selected_node.end(); ++it) {
-            if (it->name == node.name) {
+            if (it->get_name() == node.get_name()) {
                 selected_node.erase(it);
                 return true;
             }
@@ -302,7 +302,7 @@ struct selector_t {
 
     bool select(const edge_t &edge)
     {
-        if (!is_selected(edge)) {
+        if (!this->is_selected(edge)) {
             selected_edge.emplace_back(edge);
             return true;
         }
@@ -314,7 +314,7 @@ struct selector_t {
         if (!is_selected(edge))
             return true;
         for (auto it = selected_edge.begin(); it != selected_edge.end(); ++it) {
-            if (it->alias == edge.alias) {
+            if (it->get_alias() == edge.get_alias()) {
                 selected_edge.erase(it);
                 return true;
             }
@@ -325,7 +325,7 @@ struct selector_t {
     bool is_selected(const node_t &node) const
     {
         for (const auto &it : selected_node)
-            if (it.name == node.name)
+            if (it.get_name() == node.get_name())
                 return true;
         return false;
     }
@@ -333,7 +333,7 @@ struct selector_t {
     bool is_selected(const edge_t &edge) const
     {
         for (const auto &it : selected_edge)
-            if (it.alias == edge.alias)
+            if (it.get_alias() == edge.get_alias())
                 return true;
         return false;
     }
@@ -345,6 +345,19 @@ struct selector_t {
                 return true;
         return false;
     }
+
+    /// @brief Stream operator.
+    inline friend std::ostream &operator<<(std::ostream &lhs, const selector_t &rhs)
+    {
+        lhs << "[NODES : {";
+        for (const auto &it : rhs.selected_node)
+            lhs << " " << it;
+        lhs << "}, EDGES : {";
+        for (const auto &it : rhs.selected_edge)
+            lhs << " " << it;
+        lhs << "}]";
+        return lhs;
+    }
 };
 
 void __find_minimum_spanning_tree_ground_analysis(
@@ -355,22 +368,22 @@ void __find_minimum_spanning_tree_ground_analysis(
     // Prepare a function which checks if a edge needs to be skipped.
     auto __need_to_skip = [&selected](const edge_t &edge) {
         // Check if none of the edge nodes is a ground node.
-        if ((!edge.n1.ground) && (!edge.n2.ground)) {
-            //std::cout << "[none is ground]";
+        if ((!edge.get_first().is_ground()) && (!edge.get_second().is_ground())) {
             return true;
         }
         // Check if both the edge nodes are selected.
-        if (selected.is_selected(edge.n1) && selected.is_selected(edge.n2)) {
-            //std::cout << "[both already selected]";
+        if (selected.is_selected(edge.get_first()) && selected.is_selected(edge.get_second())) {
             return true;
         }
         // Check if the given edge is connected to an already selected node
         // AND the other node of the edge is a ground node.
         for (const edge_t &sel_edge : selected.selected_edge) {
-            if (sel_edge.is_connected_to(edge.n1) && edge.n2.ground)
+            if (sel_edge.is_connected_to(edge.get_first()) && edge.get_second().is_ground()) {
                 return true;
-            if (sel_edge.is_connected_to(edge.n2) && edge.n1.ground)
+            }
+            if (sel_edge.is_connected_to(edge.get_second()) && edge.get_first().is_ground()) {
                 return true;
+            }
         }
         return false;
     };
@@ -379,8 +392,8 @@ void __find_minimum_spanning_tree_ground_analysis(
         if (!__need_to_skip(edge)) {
             // Set that the nodes of the edge and the edge have been selected.
             selected.select(edge);
-            selected.select(edge.n1);
-            selected.select(edge.n2);
+            selected.select(edge.get_first());
+            selected.select(edge.get_second());
         }
     }
 }
@@ -399,23 +412,23 @@ selector_t __find_minimum_spanning_tree(
         // Get the edges that did not get selected.
         for (const auto &edge : __collection_get_connected_edges(__collection_get_not_in(__edges, selected.selected_edge), node)) {
             // Then analyze the sectond node.
-            if ((node == edge.n1) && !selected.is_selected(edge.n2)) {
+            if ((node == edge.get_first()) && !selected.is_selected(edge.get_second())) {
                 // Push the edge inside the list of take edges.
                 selected.select(edge);
                 // Set the node as selected.
-                selected.select(edge.n2);
+                selected.select(edge.get_second());
             }
             // Then analyze the first node.
-            else if ((node == edge.n2) && !selected.is_selected(edge.n1)) {
+            else if ((node == edge.get_second()) && !selected.is_selected(edge.get_first())) {
                 // Push the edge inside the list of take edges.
                 selected.select(edge);
                 // Set the node as selected.
-                selected.select(edge.n1);
+                selected.select(edge.get_first());
             }
         }
     }
     if (selected.selected_edge.size() != (__nodes.size() - 1))
-        std::cout << "Number of selected edges is lower than expected (" << selected.selected_edge.size() << " vs " << (__nodes.size() - 1) << ")...\n";
+        std::cerr << "Number of selected edges is lower than expected (" << selected.selected_edge.size() << " vs " << (__nodes.size() - 1) << ")...\n";
     return selected;
 }
 
@@ -430,7 +443,6 @@ static bool __find_graph_loop(
 {
     // We have encountered an already visited node.
     if (visited.is_selected(node)) {
-        //std::cout << "A cycle has been found!\n";
         return true;
     }
     // Add the node to the list of visited nodes.
@@ -454,16 +466,16 @@ static bool __find_graph_loop(
         visited.select(edge);
 
         // Recursively call the algorithm on the next node (node 2).
-        if (node == edge.n1) {
-            if (__find_graph_loop(__edges, __nodes, seleted, visited, positive, negative, edge.n2)) {
+        if (node == edge.get_first()) {
+            if (__find_graph_loop(__edges, __nodes, seleted, visited, positive, negative, edge.get_second())) {
                 // Add the edge to the list of positive edges.
                 positive.emplace_back(edge);
                 return true;
             }
         }
         // Recursively call the algorithm on the next node (node 1).
-        if (node == edge.n2) {
-            if (__find_graph_loop(__edges, __nodes, seleted, visited, positive, negative, edge.n1)) {
+        if (node == edge.get_second()) {
+            if (__find_graph_loop(__edges, __nodes, seleted, visited, positive, negative, edge.get_first())) {
                 // Add the edge to the list of negative edges.
                 negative.emplace_back(edge);
                 return true;
@@ -493,7 +505,6 @@ std::vector<std::pair<edge_list_t, edge_list_t>> __find_graph_loops(
 
     // Add one by one the unselected edges.
     for (auto edge : __collection_get_not_in(__edges, selected.selected_edge)) {
-        //std::cout << "Adding `" << edge << "` and searching for a loop...\n";
         // Create a copy of the selected.
         selector_t tmp = selected, visited;
         // Set the edge as selected.
@@ -501,14 +512,13 @@ std::vector<std::pair<edge_list_t, edge_list_t>> __find_graph_loops(
         // Create an empty loop.
         edge_list_t positive, negative;
         // Try to find a loop starting from the second node of the edge.
-        __find_graph_loop(__edges, __nodes, tmp, visited, positive, negative, edge.n2);
+        __find_graph_loop(__edges, __nodes, tmp, visited, positive, negative, edge.get_second());
         // Add the loop only if the loop is not empty.
         if (positive.empty() && negative.empty()) {
-            //std::cout << "Cannot find a graph cycle.\n";
+            std::cerr << "Cannot find a graph cycle.\n";
         } else {
             // Add the loop to the vector of loops.
             loops.emplace_back(std::make_pair(positive, negative));
-            //std::cout << "Loop : " << positive << " - " << negative << "\n";
         }
     }
     return loops;

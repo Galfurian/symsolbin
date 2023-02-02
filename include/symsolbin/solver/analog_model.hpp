@@ -70,6 +70,7 @@ public:
     /// @brief Prints the results.
     void print_result() const;
 
+    /// @brief Streams operator for an analog model.
     friend std::ostream &operator<<(std::ostream &lhs, const analog_model_t &rhs);
 
 protected:
@@ -98,8 +99,14 @@ protected:
     /// @return The GiNaC symbol for the accessed value.
     GiNaC::symbol F(const edge_t &edge);
     
+    /// @brief Creates an integral.
+    /// @param e the expression inside the integral.
+    /// @return the discretized expression.
     GiNaC::ex idt(const GiNaC::ex &e);
     
+    /// @brief Creates a derivative.
+    /// @param e the expression inside the derivative.
+    /// @return the discretized expression.
     GiNaC::ex ddt(const GiNaC::ex &e);
 
     /// @brief Defines an equation of the system of equations.

@@ -20,6 +20,10 @@ public:
     /// @brief Destructor.
     ~classifier_t() override;
 
+    /// @brief Runs the classifier on the given expression.
+    /// @param e the expression.
+    /// @return true if the expression is a structural equation, false if it is
+    /// a behavioural equation.
     bool classify(const GiNaC::ex &e)
     {
         return this->visit(e);
