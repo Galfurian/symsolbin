@@ -54,8 +54,7 @@ int main(int, char *[])
     Model model;
     model.run_solver();
     std::cout << "\n";
-    model.print_result();
-    std::cout << "\n";
+    std::cout << model << "\n";
     return 0;
 }
 

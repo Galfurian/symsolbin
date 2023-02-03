@@ -45,24 +45,38 @@ static inline edge_list_t __collection_get_connected_edges(const edge_list_t &co
     return list;
 }
 
+analog_model_t::analog_model_t()
+    : system(),
+      structure(),
+      solution()
+{
+    // Nothing to do.
+}
+
+void analog_model_t::run_solver(const GiNaC::exmap &replacement)
+{
+    this->setup();
+    this->solve(replacement);
+}
+
 inline void analog_model_t::__register_node(const node_t &node)
 {
-    if (!collection_contains_node(__nodes, node)) {
-        __nodes.emplace_back(node);
+    if (!collection_contains_node(structure.nodes, node)) {
+        structure.nodes.emplace_back(node);
     }
 }
 
-inline void analog_model_t::__register_real(const value_t &real)
+inline void analog_model_t::__register_value(const value_t &value)
 {
-    if (!collection_contains_value(__values, real)) {
-        __values.emplace_back(real);
+    if (!collection_contains_value(system.values, value)) {
+        system.values.emplace_back(value);
     }
 }
 
 inline void analog_model_t::__register_edge(const edge_t &edge)
 {
-    if (!collection_contains_edge(__edges, edge)) {
-        __edges.emplace_back(edge);
+    if (!collection_contains_edge(structure.edges, edge)) {
+        structure.edges.emplace_back(edge);
         __register_node(edge.get_first());
         __register_node(edge.get_second());
     }
@@ -71,13 +85,19 @@ inline void analog_model_t::__register_edge(const edge_t &edge)
 void analog_model_t::equations(const GiNaC::ex &e)
 {
     static classifier_t classifier;
-    if (classifier.classify(e))
-        __equations.append(e);
+    if (classifier.classify(e)) {
+        system.equations.emplace_back(GiNaC::ex_to<GiNaC::relational>(e));
+    }
 }
 
 void analog_model_t::unknowns(const GiNaC::symbol &sym)
 {
-    __unknowns.append(sym);
+    system.unknowns.emplace_back(sym);
+}
+
+void analog_model_t::values(const value_t &value)
+{
+    __register_value(value);
 }
 
 GiNaC::symbol analog_model_t::P(const node_t &n1, const node_t &n2)
@@ -110,19 +130,29 @@ GiNaC::symbol analog_model_t::F(const edge_t &edge)
 
 GiNaC::ex analog_model_t::idt(const GiNaC::ex &e)
 {
-    auto idt_name = name_gen::get_name("idt");
-    auto idt      = ginac_helper::get_symbol(idt_name);
-    auto result   = (idt + e * ts);
-    __result_support.emplace_back(idt == e * ts);
+    auto idt    = value_t(name_gen::get_name("idt"));
+    auto result = (idt + e * ts);
+    solution.support.emplace_back(GiNaC::ex_to<GiNaC::relational>(idt == e * ts));
+    if (!collection_contains_value(solution.values, idt)) {
+        solution.values.emplace_back(idt);
+    }
+    if (!collection_contains_value(solution.values, ts)) {
+        solution.values.emplace_back(ts);
+    }
     return result;
 }
 
 GiNaC::ex analog_model_t::ddt(const GiNaC::ex &e)
 {
-    auto ddt_name = name_gen::get_name("ddt");
-    auto ddt      = ginac_helper::get_symbol(ddt_name);
-    auto result   = ((e - ddt) / ts);
-    __result_support.emplace_back(ddt == (e - ddt) / ts);
+    auto ddt    = value_t(name_gen::get_name("ddt"));
+    auto result = ((e - ddt) / ts);
+    solution.support.emplace_back(GiNaC::ex_to<GiNaC::relational>(ddt == (e - ddt) / ts));
+    if (!collection_contains_value(solution.values, ddt)) {
+        solution.values.emplace_back(ddt);
+    }
+    if (!collection_contains_value(solution.values, ts)) {
+        solution.values.emplace_back(ts);
+    }
     return result;
 }
 
@@ -147,74 +177,40 @@ equation_set_t analog_model_t::replace_symbols(const equation_set_t &equations, 
     return replaced;
 }
 
-void analog_model_t::print_result() const
-{
-    std::cout << "Solved equations:\n";
-    std::cout << GiNaC::csrc_float;
-    for (const auto &equation : __result) {
-        std::cout << "    " << equation << "\n";
-    }
-    std::cout << "Support:\n";
-    for (const auto &equation : __result_support) {
-        std::cout << "    " << equation << "\n";
-    }
-}
-
 std::ostream &operator<<(std::ostream &lhs, const analog_model_t &rhs)
 {
     lhs << GiNaC::csrc_float;
     lhs << "analog_model_t:\n";
     lhs << "    Nodes  : ";
-    for (const auto &it : rhs.__nodes)
+    for (const auto &it : rhs.structure.nodes)
         lhs << " " << it;
     lhs << "\n";
     lhs << "    Edges  : ";
-    for (const auto &it : rhs.__edges)
+    for (const auto &it : rhs.structure.edges)
         lhs << " " << it;
     lhs << "\n";
     lhs << "    Values : ";
-    for (const auto &it : rhs.__values)
+    for (const auto &it : rhs.system.values)
         lhs << " " << it;
     lhs << "\n";
     lhs << "    Equations\n";
-    for (const auto &it : rhs.__equations)
+    for (const auto &it : rhs.system.equations)
         lhs << "        " << it << "\n";
     lhs << "    Equations (KPL)\n";
-    for (const auto &it : rhs.__kpl)
+    for (const auto &it : rhs.system.kpl)
         lhs << "        " << it << "\n";
     lhs << "    Equations (KFL)\n";
-    for (const auto &it : rhs.__kfl)
+    for (const auto &it : rhs.system.kfl)
         lhs << "        " << it << "\n";
     lhs << "    Unknowns\n";
-    for (const auto &it : rhs.__unknowns)
+    for (const auto &it : rhs.system.unknowns)
         lhs << "        " << it << "\n";
-    if (!rhs.__result.empty()) {
+    if (!rhs.solution.equations.empty()) {
         lhs << "    Results\n";
-        for (const auto &it : rhs.__result)
+        for (const auto &it : rhs.solution.equations)
             lhs << "        " << it << "\n";
     }
     return lhs;
-}
-
-model_details_t analog_model_t::get_model_details(const GiNaC::exmap &)
-{
-    // Build the system.
-    this->setup();
-    this->compute_kfl();
-    this->compute_kpl();
-    // Fill the details.
-    model_details_t details;
-    for (const auto &it : __equations)
-        details.equations.append(GiNaC::ex_to<GiNaC::relational>(it));
-    for (const auto &it : __kpl)
-        details.equations.append(GiNaC::ex_to<GiNaC::relational>(it));
-    for (const auto &it : __kfl)
-        details.equations.append(GiNaC::ex_to<GiNaC::relational>(it));
-    for (const auto &it : __unknowns)
-        details.unknowns.append(GiNaC::ex_to<GiNaC::symbol>(it));
-    details.nodes = this->__nodes;
-    details.edges = this->__edges;
-    return details;
 }
 
 void analog_model_t::solve(const GiNaC::exmap &replacement)
@@ -222,41 +218,46 @@ void analog_model_t::solve(const GiNaC::exmap &replacement)
     this->compute_kfl();
     this->compute_kpl();
 
-    GiNaC::lst equation_list;
-    for (const auto &it : __equations)
-        equation_list.append(it);
-    for (const auto &it : __kpl)
-        equation_list.append(it);
-    for (const auto &it : __kfl)
-        equation_list.append(it);
+    // Gather the equations.
+    GiNaC::lst equations;
+    for (const auto &it : system.equations)
+        equations.append(it);
+    for (const auto &it : system.kpl)
+        equations.append(it);
+    for (const auto &it : system.kfl)
+        equations.append(it);
 
-    std::cout << *this << "\n";
+    // Gather the unknowns.
+    GiNaC::lst unknowns;
+    for (const auto &it : system.unknowns)
+        unknowns.append(it);
 
-    __result =
+    // Run the solver.
+    solution.equations =
         ginac_helper::split_solved(
             ginac_helper::solve(
-                equation_list,
-                __unknowns,
+                equations,
+                unknowns,
                 GiNaC::solve_algo::automatic,
                 replacement));
 }
 
 void analog_model_t::compute_kfl()
 {
-    __kfl.remove_all();
+    system.kfl.clear();
 
-    for (const auto &node : __nodes) {
+    for (const auto &node : structure.nodes) {
         if (node.is_ground())
             continue;
         GiNaC::ex sum;
-        for (const auto &edge : __edges) {
+        for (const auto &edge : structure.edges) {
             if (edge.get_first() == node) {
                 sum = sum - F(edge);
             } else if (edge.get_second() == node) {
                 sum = sum + F(edge);
             }
         }
-        __kfl.append(sum == 0);
+        system.kfl.emplace_back(sum == 0);
     }
 }
 
@@ -361,7 +362,7 @@ struct selector_t {
 };
 
 void __find_minimum_spanning_tree_ground_analysis(
-    const edge_list_t &__edges,
+    const edge_list_t &edges,
     const node_list_t &,
     selector_t &selected)
 {
@@ -387,7 +388,7 @@ void __find_minimum_spanning_tree_ground_analysis(
         }
         return false;
     };
-    for (const edge_t &edge : __edges) {
+    for (const edge_t &edge : edges) {
         // Check if the edge needs to be skipped.
         if (!__need_to_skip(edge)) {
             // Set that the nodes of the edge and the edge have been selected.
@@ -399,18 +400,18 @@ void __find_minimum_spanning_tree_ground_analysis(
 }
 
 selector_t __find_minimum_spanning_tree(
-    const edge_list_t &__edges,
-    const node_list_t &__nodes)
+    const edge_list_t &edges,
+    const node_list_t &nodes)
 {
     selector_t selected;
 
     // Find the edges that are connected to ground.
-    __find_minimum_spanning_tree_ground_analysis(__edges, __nodes, selected);
+    __find_minimum_spanning_tree_ground_analysis(edges, nodes, selected);
 
     // The first iteration is through all the nodes which have been selected.
     for (const auto &node : selected.selected_node) {
         // Get the edges that did not get selected.
-        for (const auto &edge : __collection_get_connected_edges(__collection_get_not_in(__edges, selected.selected_edge), node)) {
+        for (const auto &edge : __collection_get_connected_edges(__collection_get_not_in(edges, selected.selected_edge), node)) {
             // Then analyze the sectond node.
             if ((node == edge.get_first()) && !selected.is_selected(edge.get_second())) {
                 // Push the edge inside the list of take edges.
@@ -427,14 +428,14 @@ selector_t __find_minimum_spanning_tree(
             }
         }
     }
-    if (selected.selected_edge.size() != (__nodes.size() - 1))
-        std::cerr << "Number of selected edges is lower than expected (" << selected.selected_edge.size() << " vs " << (__nodes.size() - 1) << ")...\n";
+    if (selected.selected_edge.size() != (nodes.size() - 1))
+        std::cerr << "Number of selected edges is lower than expected (" << selected.selected_edge.size() << " vs " << (nodes.size() - 1) << ")...\n";
     return selected;
 }
 
 static bool __find_graph_loop(
-    const edge_list_t &__edges,
-    const node_list_t &__nodes,
+    const edge_list_t &edges,
+    const node_list_t &nodes,
     selector_t &seleted,
     selector_t &visited,
     edge_list_t &positive,
@@ -449,7 +450,7 @@ static bool __find_graph_loop(
     visited.select(node);
 
     // Iterate through the list of connected edges.
-    for (const auto &edge : __collection_get_connected_edges(__edges, node)) {
+    for (const auto &edge : __collection_get_connected_edges(edges, node)) {
         // If the current edge has not been selected, skip it.
         if (!seleted.is_selected(edge))
             continue;
@@ -467,7 +468,7 @@ static bool __find_graph_loop(
 
         // Recursively call the algorithm on the next node (node 2).
         if (node == edge.get_first()) {
-            if (__find_graph_loop(__edges, __nodes, seleted, visited, positive, negative, edge.get_second())) {
+            if (__find_graph_loop(edges, nodes, seleted, visited, positive, negative, edge.get_second())) {
                 // Add the edge to the list of positive edges.
                 positive.emplace_back(edge);
                 return true;
@@ -475,7 +476,7 @@ static bool __find_graph_loop(
         }
         // Recursively call the algorithm on the next node (node 1).
         if (node == edge.get_second()) {
-            if (__find_graph_loop(__edges, __nodes, seleted, visited, positive, negative, edge.get_first())) {
+            if (__find_graph_loop(edges, nodes, seleted, visited, positive, negative, edge.get_first())) {
                 // Add the edge to the list of negative edges.
                 negative.emplace_back(edge);
                 return true;
@@ -495,8 +496,8 @@ static bool __find_graph_loop(
 }
 
 std::vector<std::pair<edge_list_t, edge_list_t>> __find_graph_loops(
-    const edge_list_t &__edges,
-    const node_list_t &__nodes,
+    const edge_list_t &edges,
+    const node_list_t &nodes,
     const selector_t &selected)
 {
     //std::cout << "Searching graph cycles...\n";
@@ -504,7 +505,7 @@ std::vector<std::pair<edge_list_t, edge_list_t>> __find_graph_loops(
     std::vector<std::pair<edge_list_t, edge_list_t>> loops;
 
     // Add one by one the unselected edges.
-    for (auto edge : __collection_get_not_in(__edges, selected.selected_edge)) {
+    for (auto edge : __collection_get_not_in(edges, selected.selected_edge)) {
         // Create a copy of the selected.
         selector_t tmp = selected, visited;
         // Set the edge as selected.
@@ -512,7 +513,7 @@ std::vector<std::pair<edge_list_t, edge_list_t>> __find_graph_loops(
         // Create an empty loop.
         edge_list_t positive, negative;
         // Try to find a loop starting from the second node of the edge.
-        __find_graph_loop(__edges, __nodes, tmp, visited, positive, negative, edge.get_second());
+        __find_graph_loop(edges, nodes, tmp, visited, positive, negative, edge.get_second());
         // Add the loop only if the loop is not empty.
         if (positive.empty() && negative.empty()) {
             std::cerr << "Cannot find a graph cycle.\n";
@@ -524,12 +525,12 @@ std::vector<std::pair<edge_list_t, edge_list_t>> __find_graph_loops(
     return loops;
 }
 
-std::vector<parallel_info_t> __find_parallel_edges(const edge_list_t &__edges)
+std::vector<parallel_info_t> __find_parallel_edges(const edge_list_t &edges)
 {
     std::vector<parallel_info_t> parallel;
     std::set<edge_t> analyzed;
 
-    for (const edge_t &edge : __edges) {
+    for (const edge_t &edge : edges) {
         if (analyzed.count(edge))
             continue;
 
@@ -537,7 +538,7 @@ std::vector<parallel_info_t> __find_parallel_edges(const edge_list_t &__edges)
 
         edge_list_t others;
 
-        for (const edge_t &other : __edges) {
+        for (const edge_t &other : edges) {
             if (analyzed.count(other))
                 continue;
             if (!edge.is_parallel_to(other))
@@ -554,21 +555,21 @@ std::vector<parallel_info_t> __find_parallel_edges(const edge_list_t &__edges)
 
 void analog_model_t::compute_kpl()
 {
-    __kpl.remove_all();
-    auto selected = __find_minimum_spanning_tree(__edges, __nodes);
-    auto loops    = __find_graph_loops(__edges, __nodes, selected);
+    system.kpl.clear();
+    auto selected = __find_minimum_spanning_tree(structure.edges, structure.nodes);
+    auto loops    = __find_graph_loops(structure.edges, structure.nodes, selected);
     for (const auto &loop_pair : loops) {
         GiNaC::ex sum;
         for (const auto &edge : loop_pair.first)
             sum = sum + P(edge);
         for (const auto &edge : loop_pair.second)
             sum = sum - P(edge);
-        __kpl.append(sum == 0);
+        system.kpl.emplace_back(sum == 0);
     }
-    auto parallel_list = __find_parallel_edges(__edges);
+    auto parallel_list = __find_parallel_edges(structure.edges);
     for (const auto &group : parallel_list) {
         for (const edge_t &edge : group.others) {
-            __kpl.append(P(group.representative) == P(edge));
+            system.kpl.emplace_back(P(group.representative) == P(edge));
         }
     }
 }

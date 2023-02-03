@@ -121,10 +121,22 @@ public:
         return (rhs._replace) ? lhs == rhs._value : lhs == rhs._symbol;
     }
 
+    /// @brief Returns a relational.
+    inline friend GiNaC::ex operator==(const value_t &lhs, const GiNaC::ex &rhs)
+    {
+        return (lhs._replace) ? lhs._value == rhs : lhs._symbol == rhs;
+    }
+
     /// @brief Checks if two values are the same.
     inline friend bool operator==(const value_t &lhs, const value_t &rhs)
     {
         return lhs._symbol == rhs._symbol;
+    }
+
+    /// @brief Compares the names of two values, useful for sorting them inside a collection.
+    inline bool operator<(const value_t &rhs) const
+    {
+        return _symbol < rhs._symbol;
     }
 
     /// @brief Stream operator.

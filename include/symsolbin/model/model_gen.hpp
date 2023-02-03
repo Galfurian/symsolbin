@@ -9,16 +9,22 @@
 namespace symsolbin
 {
 
-/// @brief Creates a simulation code that uses dense matrices from Eigen3.
-/// @param details the details about the solved system of equations.
+/// @brief Creates a C++ simulation code.
+/// @param model the analog model we want to print.
 /// @param name the name of the output class.
 /// @return the generated code.
-std::string generate_class_dense(const model_details_t &details, const std::string &name);
+std::string generate_class(const analog_model_t &model, const std::string &name);
+
+/// @brief Creates a simulation code that uses dense matrices from Eigen3.
+/// @param model the analog model we want to print.
+/// @param name the name of the output class.
+/// @return the generated code.
+std::string generate_class_dense(const analog_model_t &model, const std::string &name);
 
 /// @brief Creates a simulation code that uses sparse matrices from Eigen3.
-/// @param details the details about the solved system of equations.
+/// @param model the analog model we want to print.
 /// @param name the name of the output class.
 /// @return the generated code.
-std::string generate_class_sparse(const model_details_t &details, const std::string &name);
+std::string generate_class_sparse(const analog_model_t &model, const std::string &name);
 
 } // namespace symsolbin

@@ -79,6 +79,7 @@ add_library(
     ${PROJECT_SOURCE_DIR}/src/symsolbin/structure/node.cpp
     ${PROJECT_SOURCE_DIR}/src/symsolbin/structure/value.cpp
     ${PROJECT_SOURCE_DIR}/src/symsolbin/model/model_gen.cpp
+    ${PROJECT_SOURCE_DIR}/src/symsolbin/model/generate_class.cpp
 )
 add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 # Inlcude header directories.

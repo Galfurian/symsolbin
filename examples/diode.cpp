@@ -57,7 +57,6 @@ int main(int, char *[])
     // ts.set_value(1e-03);
     model.run_solver();
     std::cout << "\n";
-    model.print_result();
-    std::cout << "\n";
+    std::cout << model << "\n";
     return 0;
 }

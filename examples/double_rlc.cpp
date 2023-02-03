@@ -4,6 +4,7 @@
 
 #include <symsolbin/solver/analog_model.hpp>
 #include <symsolbin/solver/ginac_helper.hpp>
+#include <symsolbin/model/model_gen.hpp>
 
 using namespace symsolbin;
 using namespace symsolbin::ginac_helper;
@@ -60,6 +61,7 @@ public:
             P(R1), F(R1),
             P(L1), F(L1),
             P(C1), F(C1));
+        values(r0, c0, l0, r1, c1, l1, vin);
     }
 };
 
@@ -75,7 +77,12 @@ int main(int, char *[])
     // model.l1.set_value(1);
     // ts.set_value(1e-03);
     model.run_solver();
-    std::cout << "\nResult:\n";
-    model.print_result();
+    // std::cout << "\nResult:\n";
+    // model.print_result();
+    std::cout << "\n";
+    std::cout << "Class:\n";
+    std::cout << "\n";
+    std::cout << generate_class(model, "double_rlc_t") << "\n";
+
     return 0;
 }

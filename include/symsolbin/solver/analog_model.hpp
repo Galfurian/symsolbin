@@ -17,61 +17,68 @@ using equation_set_t = std::vector<GiNaC::relational>;
 /// A set of symbols.
 using symbol_set_t = std::vector<GiNaC::symbol>;
 
-/// Details of a model.
-struct model_details_t {
-    /// The equations of the system.
-    GiNaC::lst equations;
-    /// The unknowns of the system.
-    GiNaC::lst unknowns;
+/// @brief Details about the structure of a system.
+struct structure_t {
     /// The edges of the system.
     edge_list_t edges;
     /// The nodes of the system.
     node_list_t nodes;
+};
+
+/// @brief Details about a system of equations.
+struct system_t {
+    /// The initial set of equations.
+    equation_set_t equations;
+    /// Kirchoff's potential law equations.
+    equation_set_t kpl;
+    /// Kirchoff's flow law equations.
+    equation_set_t kfl;
+    /// The unknowns of the system.
+    symbol_set_t unknowns;
     /// The list of values.
+    value_list_t values;
+};
+
+/// @brief Details about a solved system of equations.
+struct solved_systyem_t {
+    /// The solved set of equations.
+    equation_set_t equations;
+    /// Support equations for the solved set.
+    equation_set_t support;
+    /// The list of support values.
     value_list_t values;
 };
 
 /// @brief An analog model.
 class analog_model_t {
 public:
-    analog_model_t()
-        : __equations(),
-          __unknowns(),
-          __kpl(),
-          __kfl(),
-          __nodes(),
-          __edges(),
-          __values(),
-          __result(),
-          __result_support()
-    {
-    }
+    /// @brief Constructor.
+    analog_model_t();
 
     /// @brief runs the solver.
     /// @return the solved set of equations.
-    inline const equation_set_t &run_solver(const GiNaC::exmap &replacement = GiNaC::exmap())
-    {
-        this->setup();
-        this->solve(replacement);
-        return __result;
-    }
-
-    /// @brief returns the details of the model.
-    /// @return the details of the model.
-    model_details_t get_model_details(const GiNaC::exmap &replacement = GiNaC::exmap());
-
-    /// @brief Get the result of the solved set.
-    /// @return the solved set of equations.
-    inline const equation_set_t &get_result()
-    {
-        return __result;
-    }
-
-    /// @brief Prints the results.
-    void print_result() const;
+    void run_solver(const GiNaC::exmap &replacement = GiNaC::exmap());
 
     /// @brief Streams operator for an analog model.
     friend std::ostream &operator<<(std::ostream &lhs, const analog_model_t &rhs);
+
+    /// @brief Returns the system of equations.
+    inline system_t get_system() const
+    {
+        return system;
+    }
+
+    /// @brief Returns the structure of the circuit.
+    inline structure_t get_structure() const
+    {
+        return structure;
+    }
+
+    /// @brief Returns the solution to the system of equations.
+    inline solved_systyem_t get_solution() const
+    {
+        return solution;
+    }
 
 protected:
     /// @brief Setup the equation system.
@@ -98,12 +105,12 @@ protected:
     /// @param edge the edge.
     /// @return The GiNaC symbol for the accessed value.
     GiNaC::symbol F(const edge_t &edge);
-    
+
     /// @brief Creates an integral.
     /// @param e the expression inside the integral.
     /// @return the discretized expression.
     GiNaC::ex idt(const GiNaC::ex &e);
-    
+
     /// @brief Creates a derivative.
     /// @param e the expression inside the derivative.
     /// @return the discretized expression.
@@ -137,6 +144,20 @@ protected:
         unknowns(args...);
     }
 
+    /// @brief Registers a value in the system.
+    /// @param value the value we want to register.
+    void values(const value_t &value);
+
+    /// @brief Registers a value in the system.
+    /// @param value the value we want to register.
+    /// @param args the other values.
+    template <typename... Args>
+    void values(const value_t &value, Args... args)
+    {
+        values(value);
+        values(args...);
+    }
+
     /// @brief Replaces the symbols inside the equations.
     /// @param equations the equations to edit.
     /// @param replacement the replacement for symbols.
@@ -144,30 +165,18 @@ protected:
     equation_set_t replace_symbols(const equation_set_t &equations, const GiNaC::exmap &replacement);
 
 private:
-    ///
-    GiNaC::lst __equations;
-    ///
-    GiNaC::lst __unknowns;
-    ///
-    GiNaC::lst __kpl;
-    ///
-    GiNaC::lst __kfl;
-    ///
-    node_list_t __nodes;
-    ///
-    edge_list_t __edges;
-    ///
-    value_list_t __values;
-    /// The solved set of equations.
-    equation_set_t __result;
-    /// Support functions for the solved set.
-    equation_set_t __result_support;
+    /// @brief System of equations.
+    system_t system;
+    /// @brief Structure of the circuit.
+    structure_t structure;
+    /// @brief Solution to the system of equations.
+    solved_systyem_t solution;
 
     void __register_node(const node_t &node);
 
     void __register_edge(const edge_t &edge);
 
-    void __register_real(const value_t &value);
+    void __register_value(const value_t &value);
 
     /// @brief
     void compute_kfl();

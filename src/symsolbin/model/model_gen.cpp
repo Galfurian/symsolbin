@@ -9,23 +9,27 @@
 namespace symsolbin
 {
 
-static void __matrix_from_equations(const GiNaC::ex &eqns, const GiNaC::ex &symbols, GiNaC::matrix &A, GiNaC::matrix &b)
+static void __matrix_from_equations(
+    const equation_set_t &eqns,
+    const symbol_set_t &symbols,
+    GiNaC::matrix &A,
+    GiNaC::matrix &b)
 {
-    unsigned equ_nops = static_cast<unsigned>(eqns.nops());
-    unsigned sym_nops = static_cast<unsigned>(symbols.nops());
+    unsigned equ_size = static_cast<unsigned>(eqns.size());
+    unsigned sym_size = static_cast<unsigned>(symbols.size());
 
     // build matrix from equation system
-    GiNaC::matrix sys(equ_nops, sym_nops);
-    GiNaC::matrix rhs(equ_nops, 1);
-    GiNaC::matrix vars(sym_nops, 1);
+    GiNaC::matrix sys(equ_size, sym_size);
+    GiNaC::matrix rhs(equ_size, 1);
+    GiNaC::matrix vars(sym_size, 1);
 
-    for (unsigned r = 0; r < equ_nops; r++) {
+    for (unsigned r = 0; r < equ_size; r++) {
         // lhs-rhs==0
-        const GiNaC::ex eq = eqns.op(r).op(0) - eqns.op(r).op(1);
+        const GiNaC::ex eq = eqns[r].op(0) - eqns[r].op(1);
         GiNaC::ex linpart  = eq;
-        for (unsigned c = 0; c < sym_nops; c++) {
-            const GiNaC::ex co = eq.coeff(GiNaC::ex_to<GiNaC::symbol>(symbols.op(c)), 1);
-            linpart -= co * symbols.op(c);
+        for (unsigned c = 0; c < sym_size; c++) {
+            const GiNaC::ex co = eq.coeff(GiNaC::ex_to<GiNaC::symbol>(symbols[c]), 1);
+            linpart -= co * symbols[c];
             sys(r, c) = co;
         }
         linpart   = linpart.expand();
@@ -35,19 +39,22 @@ static void __matrix_from_equations(const GiNaC::ex &eqns, const GiNaC::ex &symb
     b = rhs;
 }
 
-std::string generate_class_dense(const model_details_t &details, const std::string &name)
+std::string generate_class_dense(const analog_model_t &model, const std::string &name)
 {
     std::stringstream ss;
     GiNaC::csrc_double(ss);
+    
+    auto structure = model.get_structure();
+    auto solution = model.get_solution();
+    auto system = model.get_system();
 
     GiNaC::matrix A;
     GiNaC::matrix b;
 
-    __matrix_from_equations(details.equations, details.unknowns, A, b);
+    __matrix_from_equations(system.equations, system.unknowns, A, b);
 
-    unsigned equ_nops = static_cast<unsigned>(details.equations.nops());
-    unsigned unk_nops = static_cast<unsigned>(details.unknowns.nops());
-    unsigned edg_size = static_cast<unsigned>(details.edges.size());
+    unsigned equ_size = static_cast<unsigned>(system.equations.size());
+    unsigned unk_size = static_cast<unsigned>(system.unknowns.size());
 
     ss << "//" << std::string(78, '=') << "\n";
     ss << "#include <Eigen/Dense>\n";
@@ -63,29 +70,29 @@ std::string generate_class_dense(const model_details_t &details, const std::stri
     ss << "\n";
     ss << "    Eigen::JacobiSVD<Eigen::Matrix<double, " << A.rows() << ", " << A.cols() << "> solver;\n";
     ss << "\n";
-    for (const auto &edge : details.edges)
+    for (const auto &edge : structure.edges)
         ss << "    analog_pair_t " << edge << ";\n";
     ss << "\n";
     ss << "    " << name << "() :\n";
     ss << "        A(),\n";
     ss << "        b(),\n";
     ss << "        solver(),\n";
-    for (unsigned i = 0; i < edg_size; ++i) {
-        ss << "        " << details.edges[i] << "()";
-        if (i < (edg_size - 1))
+    for (unsigned i = 0; i < structure.edges.size(); ++i) {
+        ss << "        " << structure.edges[i] << "()";
+        if (i < (structure.edges.size() - 1))
             ss << ",";
         ss << "\n";
     }
     ss << "    {\n";
 #if 0
     ss << "        A << ";
-    for (unsigned r = 0; r < equ_nops; r++) {
-        for (unsigned c = 0; c < unk_nops; c++) {
+    for (unsigned r = 0; r < equ_size; r++) {
+        for (unsigned c = 0; c < unk_size; c++) {
             ss << A(r, c);
-            if (c < (unk_nops - 1))
+            if (c < (unk_size - 1))
                 ss << ", ";
         }
-        if (r < (equ_nops - 1))
+        if (r < (equ_size - 1))
             ss << ",";
         else
             ss << ";";
@@ -94,22 +101,22 @@ std::string generate_class_dense(const model_details_t &details, const std::stri
 #else
     ss << "        // Set the A matrix.\n";
     ss << "        A << ";
-    for (unsigned r = 0; r < equ_nops; r++) {
-        for (unsigned c = 0; c < unk_nops; c++) {
+    for (unsigned r = 0; r < equ_size; r++) {
+        for (unsigned c = 0; c < unk_size; c++) {
             ss << std::setw(4) << std::right << A(r, c);
-            if (c < unk_nops - 1)
+            if (c < unk_size - 1)
                 ss << ", ";
         }
-        if (r < equ_nops - 1)
+        if (r < equ_size - 1)
             ss << ",\n             ";
         else
             ss << ";\n";
     }
     ss << "        // Set the b matrix.\n";
     ss << "        b << ";
-    for (unsigned r = 0; r < equ_nops; r++) {
+    for (unsigned r = 0; r < equ_size; r++) {
         ss << std::setw(4) << std::right << b(r, 0);
-        if (r < equ_nops - 1)
+        if (r < equ_size - 1)
             ss << ", ";
         else
             ss << ";\n";
@@ -122,7 +129,7 @@ std::string generate_class_dense(const model_details_t &details, const std::stri
     ss << "    void trace(VariableTracer & tracer)\n";
     ss << "    {\n";
     ss << "        tracer.addScope(\"" << name << "\");\n";
-    for (const auto &edge : details.edges)
+    for (const auto &edge : structure.edges)
         ss << "        tracer.addTrace(" << edge << ", \"" << edge.get_alias() << "\");\n";
     ss << "        tracer.closeScope();\n";
     ss << "    }\n";
@@ -131,14 +138,14 @@ std::string generate_class_dense(const model_details_t &details, const std::stri
     ss << "    {\n";
 #if 0
     ss << "        b << ";
-    for (unsigned r = 0; r < equ_nops; r++) {
+    for (unsigned r = 0; r < equ_size; r++) {
         //if (GiNaC::is_a<GiNaC::numeric>(b(r, 0))) {
         //    auto value = GiNaC::ex_to<GiNaC::numeric>(b(r, 0)).real().to_double();
         //    if (is_equal(value, 0.0))
         //        continue;
         //}
         ss << b(r, 0);
-        if (r < (equ_nops - 1))
+        if (r < (equ_size - 1))
             ss << ", ";
         else
             ss << ";\n";
@@ -150,8 +157,8 @@ std::string generate_class_dense(const model_details_t &details, const std::stri
     ss << "        auto solution = solver.solve(b);\n";
     ss << "\n";
     ss << "        // Get the solution.\n";
-    for (unsigned r = 0; r < equ_nops; r++) {
-        ss << "        " << details.unknowns[r] << " = solution(" << r << ", 0);\n";
+    for (unsigned r = 0; r < equ_size; r++) {
+        ss << "        " << system.unknowns[r] << " = solution(" << r << ", 0);\n";
     }
     ss << "    }\n";
     ss << "};\n";
@@ -160,19 +167,23 @@ std::string generate_class_dense(const model_details_t &details, const std::stri
     return ss.str();
 }
 
-std::string generate_class_sparse(const model_details_t &details, const std::string &name)
+std::string generate_class_sparse(const analog_model_t &model, const std::string &name)
 {
     std::stringstream ss;
     GiNaC::csrc_double(ss);
 
+    auto structure = model.get_structure();
+    auto solution = model.get_solution();
+    auto system = model.get_system();
+
     GiNaC::matrix A;
     GiNaC::matrix b;
 
-    __matrix_from_equations(details.equations, details.unknowns, A, b);
+    __matrix_from_equations(system.equations, system.unknowns, A, b);
 
-    unsigned equ_nops = static_cast<unsigned>(details.equations.nops());
-    unsigned unk_nops = static_cast<unsigned>(details.unknowns.nops());
-    unsigned edg_size = static_cast<unsigned>(details.edges.size());
+    unsigned equ_size = static_cast<unsigned>(system.equations.size());
+    unsigned unk_size = static_cast<unsigned>(system.unknowns.size());
+    unsigned edg_size = static_cast<unsigned>(structure.edges.size());
 
     ss << "//" << std::string(78, '=') << "\n";
     ss << "#include <Eigen/Dense>\n";
@@ -188,7 +199,7 @@ std::string generate_class_sparse(const model_details_t &details, const std::str
     ss << "\n";
     ss << "    Eigen::SparseLU<Eigen::SparseMatrix<double>> solver;\n";
     ss << "\n";
-    for (const auto &edge : details.edges)
+    for (const auto &edge : structure.edges)
         ss << "    analog_pair_t " << edge << ";\n";
     ss << "\n";
     ss << "    " << name << "() :\n";
@@ -196,7 +207,7 @@ std::string generate_class_sparse(const model_details_t &details, const std::str
     ss << "        b(),\n";
     ss << "        solver(),\n";
     for (unsigned i = 0; i < edg_size; ++i) {
-        ss << "        " << details.edges[i] << "()";
+        ss << "        " << structure.edges[i] << "()";
         if (i < (edg_size - 1))
             ss << ",";
         ss << "\n";
@@ -204,21 +215,21 @@ std::string generate_class_sparse(const model_details_t &details, const std::str
     ss << "    {\n";
 #if 0
     ss << "        A << ";
-    for (unsigned r = 0; r < equ_nops; r++) {
-        for (unsigned c = 0; c < unk_nops; c++) {
+    for (unsigned r = 0; r < equ_size; r++) {
+        for (unsigned c = 0; c < unk_size; c++) {
             ss << A(r, c);
-            if (c < (unk_nops - 1))
+            if (c < (unk_size - 1))
                 ss << ", ";
         }
-        if (r < (equ_nops - 1))
+        if (r < (equ_size - 1))
             ss << ",";
         else
             ss << ";";
         ss << "\n             ";
     }
 #else
-    for (unsigned r = 0; r < equ_nops; r++) {
-        for (unsigned c = 0; c < unk_nops; c++) {
+    for (unsigned r = 0; r < equ_size; r++) {
+        for (unsigned c = 0; c < unk_size; c++) {
             ss << "        A.insert(" << r << ", " << c << ") = " << A(r, c) << ";\n";
         }
     }
@@ -231,7 +242,7 @@ std::string generate_class_sparse(const model_details_t &details, const std::str
     ss << "    void trace(VariableTracer & tracer)\n";
     ss << "    {\n";
     ss << "        tracer.addScope(\"" << name << "\");\n";
-    for (const auto &edge : details.edges)
+    for (const auto &edge : structure.edges)
         ss << "        tracer.addTrace(" << edge << ", \"" << edge.get_alias() << "\");\n";
     ss << "        tracer.closeScope();\n";
     ss << "    }\n";
@@ -241,20 +252,20 @@ std::string generate_class_sparse(const model_details_t &details, const std::str
     ss << "        // Set the b matrix.\n";
 #if 0
     ss << "        b << ";
-    for (unsigned r = 0; r < equ_nops; r++) {
+    for (unsigned r = 0; r < equ_size; r++) {
         //if (GiNaC::is_a<GiNaC::numeric>(b(r, 0))) {
         //    auto value = GiNaC::ex_to<GiNaC::numeric>(b(r, 0)).real().to_double();
         //    if (is_equal(value, 0.0))
         //        continue;
         //}
         ss << b(r, 0);
-        if (r < (equ_nops - 1))
+        if (r < (equ_size - 1))
             ss << ", ";
         else
             ss << ";\n";
     }
 #else
-    for (unsigned r = 0; r < equ_nops; r++) {
+    for (unsigned r = 0; r < equ_size; r++) {
         ss << "        b.insert(" << r << ", 0) = " << b(r, 0) << ";\n";
     }
 #endif
@@ -265,8 +276,8 @@ std::string generate_class_sparse(const model_details_t &details, const std::str
     ss << "        assert((solver.info() == Eigen::Success) && \"Failed solving the sparse matrix.\");\n";
     ss << "\n";
     ss << "        // Get the solution.\n";
-    for (unsigned c = 0; c < unk_nops; c++) {
-        ss << "        " << details.unknowns[c] << " = solution(" << c << ", 0);\n";
+    for (unsigned c = 0; c < unk_size; c++) {
+        ss << "        " << system.unknowns[c] << " = solution(" << c << ", 0);\n";
     }
     ss << "    }\n";
     ss << "};\n";
