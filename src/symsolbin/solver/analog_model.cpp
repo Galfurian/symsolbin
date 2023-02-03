@@ -136,9 +136,6 @@ GiNaC::ex analog_model_t::idt(const GiNaC::ex &e)
     if (!collection_contains_value(solution.values, idt)) {
         solution.values.emplace_back(idt);
     }
-    if (!collection_contains_value(solution.values, ts)) {
-        solution.values.emplace_back(ts);
-    }
     return result;
 }
 
@@ -149,9 +146,6 @@ GiNaC::ex analog_model_t::ddt(const GiNaC::ex &e)
     solution.support.emplace_back(GiNaC::ex_to<GiNaC::relational>(ddt == (e - ddt) / ts));
     if (!collection_contains_value(solution.values, ddt)) {
         solution.values.emplace_back(ddt);
-    }
-    if (!collection_contains_value(solution.values, ts)) {
-        solution.values.emplace_back(ts);
     }
     return result;
 }

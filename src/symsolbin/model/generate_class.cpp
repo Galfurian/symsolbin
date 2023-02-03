@@ -41,6 +41,7 @@ std::string generate_class(const analog_model_t &model, const std::string &name)
     ss << "//" << std::string(78, '=') << "\n";
     ss << "\n";
     ss << "#include <symsolbin/simulation/analog_pair.hpp>\n";
+    ss << "#include <symsolbin/simulation/simulation.hpp>\n";
     ss << "\n";
     ss << "class " << name << " {\n";
     ss << "public:\n";
@@ -58,6 +59,8 @@ std::string generate_class(const analog_model_t &model, const std::string &name)
     ss << "    {\n";
     ss << "    }\n";
     ss << "    void run() {\n";
+    ss << "        // Get the system timestep.\n";
+    ss << "        analog_time_t ts = _system_timestep();\n";
     ss << "        // Evaluate the analog values.\n";
     for (auto equation : solution.equations) {
         ss << "        " << equation.lhs() << " = " << equation.rhs() << ";\n";
