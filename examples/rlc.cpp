@@ -4,6 +4,7 @@
 
 #include <symsolbin/solver/analog_model.hpp>
 #include <symsolbin/solver/ginac_helper.hpp>
+#include <symsolbin/model/model_gen.hpp>
 
 using namespace symsolbin;
 using namespace symsolbin::ginac_helper;
@@ -50,6 +51,7 @@ public:
             P(L0), F(L0),
             P(C0), F(C0),
             P(RL), F(RL));
+        values(r0, l0, c0, rl);
     }
 };
 
@@ -60,5 +62,48 @@ int main(int, char *[])
     model.run_solver();
     std::cout << "\n";
     std::cout << model << "\n";
+    std::cout << "\n";
+    std::cout << generate_class(model, "rlc_t") << "\n";
     return 0;
 }
+
+//==============================================================================
+
+#include <symsolbin/simulation/analog_pair.hpp>
+#include <symsolbin/simulation/simulation.hpp>
+
+class rlc_t {
+public:
+    /// Analog edges.
+    analog_pair_t C0, L0, R0, RL, V0;
+    /// System variables.
+    analog_value_t r0, l0, c0, rl;
+    /// Support variables.
+    analog_value_t ddt0, ddt1;
+    /// Constructor.
+    rlc_t()
+        : C0(), L0(), R0(), RL(), V0(),
+          r0(), l0(), c0(), rl(),
+          ddt0(), ddt1()
+    {
+    }
+    void run()
+    {
+        // Get the system timestep.
+        analog_time_t ts = _system_timestep();
+        // Evaluate the analog values.
+        V0.flw = -1.0 / ((ts * ts) + c0 * l0 + c0 * ts * rl + c0 * ts * r0) * (c0 * ts * ddt0 + c0 * ts * V0.pot - c0 * ddt1 * l0);
+        R0.pot = -1.0 / ((ts * ts) + c0 * l0 + c0 * ts * rl + c0 * ts * r0) * r0 * (c0 * ts * ddt0 + c0 * ts * V0.pot - c0 * ddt1 * l0);
+        R0.flw = -1.0 / ((ts * ts) + c0 * l0 + c0 * ts * rl + c0 * ts * r0) * (c0 * ts * ddt0 + c0 * ts * V0.pot - c0 * ddt1 * l0);
+        L0.pot = -1.0 / ((ts * ts) + c0 * l0 + c0 * ts * rl + c0 * ts * r0) * (c0 * V0.pot + c0 * r0 * ddt1 + c0 * ddt0 + c0 * rl * ddt1 + ts * ddt1) * l0;
+        L0.flw = -1.0 / ((ts * ts) + c0 * l0 + c0 * ts * rl + c0 * ts * r0) * (c0 * ts * ddt0 + c0 * ts * V0.pot - c0 * ddt1 * l0);
+        C0.pot = -1.0 / ((ts * ts) + c0 * l0 + c0 * ts * rl + c0 * ts * r0) * ((ts * ts) * V0.pot - c0 * ts * rl * ddt0 - c0 * ddt0 * l0 - ts * ddt1 * l0 - c0 * ts * r0 * ddt0);
+        C0.flw = -1.0 / ((ts * ts) + c0 * l0 + c0 * ts * rl + c0 * ts * r0) * (c0 * ts * ddt0 + c0 * ts * V0.pot - c0 * ddt1 * l0);
+        RL.pot = -1.0 / ((ts * ts) + c0 * l0 + c0 * ts * rl + c0 * ts * r0) * rl * (c0 * ts * ddt0 + c0 * ts * V0.pot - c0 * ddt1 * l0);
+        RL.flw = -1.0 / ((ts * ts) + c0 * l0 + c0 * ts * rl + c0 * ts * r0) * (c0 * ts * ddt0 + c0 * ts * V0.pot - c0 * ddt1 * l0);
+        // Update support variables.
+        ddt0 = 1.0 / ts * (C0.pot - ddt0);
+        ddt1 = 1.0 / ts * (L0.flw - ddt1);
+    }
+};
+// =============================================================================

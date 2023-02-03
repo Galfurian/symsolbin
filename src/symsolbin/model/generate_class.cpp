@@ -49,13 +49,20 @@ std::string generate_class(const analog_model_t &model, const std::string &name)
     ss << "    analog_pair_t " << __print_list_with_commas(structure.edges, structure.edges.size()) << ";\n";
     ss << "    /// System variables.\n";
     ss << "    analog_value_t " << __print_list_with_commas(system.values, system.values.size()) << ";\n";
-    ss << "    /// Support variables.\n";
-    ss << "    analog_value_t " << __print_list_with_commas(solution.values, solution.values.size()) << ";\n";
+    if (!solution.values.empty()) {
+        ss << "    /// Support variables.\n";
+        ss << "    analog_value_t " << __print_list_with_commas(solution.values, solution.values.size()) << ";\n";
+    }
     ss << "    /// Constructor.\n";
     ss << "    " << name << "() :\n";
     ss << "        " << __print_list_with_commas(structure.edges, structure.edges.size(), "", "()") << ",\n";
-    ss << "        " << __print_list_with_commas(system.values, system.values.size(), "", "()") << ",\n";
-    ss << "        " << __print_list_with_commas(solution.values, solution.values.size(), "", "()") << "\n";
+    ss << "        " << __print_list_with_commas(system.values, system.values.size(), "", "()");
+    if (!solution.values.empty()) {
+        ss << ",\n";
+        ss << "        " << __print_list_with_commas(solution.values, solution.values.size(), "", "()") << "\n";
+    } else {
+        ss << "\n";
+    }
     ss << "    {\n";
     ss << "    }\n";
     ss << "    void run() {\n";
@@ -65,9 +72,11 @@ std::string generate_class(const analog_model_t &model, const std::string &name)
     for (auto equation : solution.equations) {
         ss << "        " << equation.lhs() << " = " << equation.rhs() << ";\n";
     }
-    ss << "        // Update support variables.\n";
-    for (auto equation : solution.support) {
-        ss << "        " << equation.lhs() << " = " << equation.rhs() << ";\n";
+    if (!solution.values.empty()) {
+        ss << "        // Update support variables.\n";
+        for (auto equation : solution.support) {
+            ss << "        " << equation.lhs() << " = " << equation.rhs() << ";\n";
+        }
     }
     ss << "    }\n";
     ss << "};\n";

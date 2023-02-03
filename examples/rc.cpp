@@ -4,6 +4,7 @@
 
 #include <symsolbin/solver/analog_model.hpp>
 #include <symsolbin/solver/ginac_helper.hpp>
+#include <symsolbin/model/model_gen.hpp>
 
 using namespace symsolbin;
 using namespace symsolbin::ginac_helper;
@@ -42,6 +43,7 @@ public:
             P(V0), F(V0),
             P(R0), F(R0),
             P(C0), F(C0));
+        values(vin, r0, c0);
     }
 };
 
@@ -52,5 +54,44 @@ int main(int, char *[])
     model.run_solver();
     std::cout << "\n";
     std::cout << model << "\n";
+    std::cout << "\n";
+    std::cout << generate_class(model, "rc_t") << "\n";
     return 0;
 }
+
+//==============================================================================
+
+#include <symsolbin/simulation/analog_pair.hpp>
+#include <symsolbin/simulation/simulation.hpp>
+
+class rc_t {
+public:
+    /// Analog edges.
+    analog_pair_t C0, R0, V0;
+    /// System variables.
+    analog_value_t vin, r0, c0;
+    /// Support variables.
+    analog_value_t ddt0;
+    /// Constructor.
+    rc_t()
+        : C0(), R0(), V0(),
+          vin(), r0(), c0(),
+          ddt0()
+    {
+    }
+    void run()
+    {
+        // Get the system timestep.
+        analog_time_t ts = _system_timestep();
+        // Evaluate the analog values.
+        V0.pot = vin;
+        V0.flw = -(vin + ddt0) * c0 / (r0 * c0 + ts);
+        R0.pot = -(vin + ddt0) * r0 * c0 / (r0 * c0 + ts);
+        R0.flw = -(vin + ddt0) * c0 / (r0 * c0 + ts);
+        C0.pot = (ddt0 * r0 * c0 - vin * ts) / (r0 * c0 + ts);
+        C0.flw = -(vin + ddt0) * c0 / (r0 * c0 + ts);
+        // Update support variables.
+        ddt0 = -(ddt0 - C0.pot) / ts;
+    }
+};
+// =============================================================================
